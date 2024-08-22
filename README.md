@@ -1,151 +1,66 @@
-code = """
-import random
-import threading
-from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.action_chains import ActionChains
-from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.keys import Keys
 import time
-import requests
 
 class PixmapBot:
-    def __init__(self, site_url='https://pixelplanet.fun', grid_selector='.grid-selector', proxy=None, api_key=None):
-        self.site_url = site_url
-        self.grid_selector = grid_selector
-        self.proxy = proxy
-        self.api_key = api_key
+    #... (rest of your class code)
 
-        # Setup Chrome options
-        chrome_options = Options()
-        if proxy:
-            chrome_options.add_argument(f'--proxy-server={proxy}')
-
-        # Initialize the Selenium WebDriver (using Chrome in this example)
-        self.driver = webdriver.Chrome(options=chrome_options)  # Make sure ChromeDriver is installed and in PATH
-        self.driver.get(self.site_url)
-        time.sleep(5)  # Wait for the page to fully load
-
-    def solve_captcha(self):
-        # Example using 2Captcha to solve CAPTCHAs
-        captcha_image = self.driver.find_element(By.CSS_SELECTOR, 'img.captcha-image').get_attribute('src')
-        captcha_response = requests.post(
-            'http://2captcha.com/in.php',
-            files={'file': ('captcha.jpg', requests.get(captcha_image).content)},
-            data={'key': self.api_key, 'method': 'post'}
-        )
-        captcha_id = captcha_response.text.split('|')[1]
-
-        # Wait for the CAPTCHA to be solved
-        time.sleep(20)
-
-        # Get the CAPTCHA result
-        result_response = requests.get(
-            f'http://2captcha.com/res.php?key={self.api_key}&action=get&id={captcha_id}'
-        )
-        captcha_solution = result_response.text.split('|')[1]
-
-        # Enter the CAPTCHA solution in the input field
-        self.driver.find_element(By.CSS_SELECTOR, 'input.captcha-input').send_keys(captcha_solution)
-        self.driver.find_element(By.CSS_SELECTOR, 'button.submit-captcha').click()
-
-    def place_random_pixel(self):
-        # If there is a CAPTCHA, solve it first
-        if "captcha" in self.driver.page_source.lower():
-            self.solve_captcha()
-        
-        # Wait for the grid to be loaded and find it
-        grid = self.driver.find_element(By.CSS_SELECTOR, self.grid_selector)
-        
-        # Get all the pixel elements (assuming each cell in the grid is clickable)
-        pixel_elements = grid.find_elements(By.CSS_SELECTOR, 'canvas > div > div')
-        
-        if pixel_elements:
-            # Select a random pixel from the available pixels
-            chosen_pixel = random.choice(pixel_elements)
+    def inject_ui(self):
+        # HTML content
+        ui_html = '''
+        <div id="bot-control-panel" style="position: fixed; top: 10px; right: 10px; width: 250px; background: rgba(0, 0, 0, 0.8); color: white; padding: 10px; border-radius: 8px; z-index: 10000;">
+            <h3 style="margin-top: 0; text-align: center;">Pixel Bot Control</h3>
+            <label for="coords1">Start Coords:</label>
+            <input type="text" id="coords1" placeholder="x1,y1" style="width: 100%; margin-bottom: 5px;">
             
-            # Use ActionChains to move to the pixel and click it
-            actions = ActionChains(self.driver)
-            actions.move_to_element(chosen_pixel).click().perform()
+            <label for="coords2">End Coords:</label>
+            <input type="text" id="coords2" placeholder="x2,y2" style="width: 100%; margin-bottom: 5px;">
             
-            print("Placed a pixel on pixelplanet.fun!")
-        else:
-            print("No pixel elements found in the grid.")
-    
-    def fill_square_with_color(self, coord1, coord2, color='red'):
-        """
-        Fill a square area defined by two coordinates with random pixels in a chosen color.
+            <label for="color">Color:</label>
+            <input type="text" id="color" placeholder="Color" style="width: 100%; margin-bottom: 5px;">
+            
+            <button id="start-bot" style="width: 100%; background-color: #4CAF50; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer;">Start Bot</button>
+            
+            <button id="stop-bot" style="width: 100%; background-color: #f44336; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; margin-top: 5px;">Stop Bot</button>
+        </div>
+        '''
+        # Injecting the UI into the page
+        self.driver.execute_script(f"document.body.innerHTML += `{ui_html}`;")
         
-        :param coord1: Tuple (x1, y1) for the top-left corner.
-        :param coord2: Tuple (x2, y2) for the bottom-right corner.
-        :param color: The color to place on the grid (could be simulated by the bot selecting a color tool on the site).
-        """
-        # If there is a CAPTCHA, solve it first
-        if "captcha" in self.driver.page_source.lower():
-            self.solve_captcha()
-        
-        # Find the grid on the page
-        grid = self.driver.find_element(By.CSS_SELECTOR, self.grid_selector)
-        
-        # Get all the pixel elements (assuming each cell in the grid is clickable)
-        pixel_elements = grid.find_elements(By.CSS_SELECTOR, 'canvas > div > div')
+        # JavaScript for functionality
+        js_script = '''
+        document.getElementById("start-bot").onclick = function() {
+            var coords1 = document.getElementById("coords1").value.split(',');
+            var coords2 = document.getElementById("coords2").value.split(',');
+            var color = document.getElementById("color").value;
 
-        if not pixel_elements:
-            print("No pixel elements found in the grid.")
-            return
-        
-        # Define the range of coordinates to fill
-        x1, y1 = coord1
-        x2, y2 = coord2
+            if (coords1.length == 2 && coords2.length == 2 && color) {
+                // Start the bot with the given parameters
+                startBot(coords1, coords2, color);
+            } else {
+                alert("Please fill in all fields correctly.");
+            }
+        };
 
-        for x in range(min(x1, x2), max(x1, x2) + 1):
-            for y in range(min(y1, y2), max(y1, y2) + 1):
-                index = y * (max(x1, x2) + 1) + x
+        document.getElementById("stop-bot").onclick = function() {
+            stopBot();  // Function to stop the bot
+        };
 
-                if 0 <= index < len(pixel_elements):
-                    chosen_pixel = pixel_elements[index]
-                    
-                    actions = ActionChains(self.driver)
-                    actions.move_to_element(chosen_pixel).click().perform()
-                    
-                    print(f"Placed {color} pixel at ({x}, {y}) on pixelplanet.fun!")
-    
-    def close(self):
-        self.driver.quit()
+        function startBot(coords1, coords2, color) {
+            console.log(`Starting bot from (${coords1}) to (${coords2}) with color ${color}`);
+            // Call the Python bot method using WebDriver's execute_script
+            window.coords1 = coords1;
+            window.coords2 = coords2;
+            window.color = color;
+        }
 
-def run_bot(proxy, coord1, coord2, color, api_key):
-    bot = PixmapBot(proxy=proxy, api_key=api_key)
-    bot.fill_square_with_color(coord1, coord2, color)
-    bot.close()
+        function stopBot() {
+            console.log("Stopping the bot");
+            // Stop the bot code here
+        }
+        '''
+        self.driver.execute_script(js_script)
 
-# List of proxies (replace with actual proxies)
-proxies = [
-    'http://proxy1:port',
-    'http://proxy2:port',
-    'http://proxy3:port',
-    # Add more proxies here
-]
-
-# 2Captcha API key
-api_key = 'your_2captcha_api_key'
-
-# Coordinates and color for the square
-coord1 = (2, 3)
-coord2 = (5, 6)
-color = 'blue'
-
-# Start 10 threads for 10 bots
-threads = []
-for i in range(10):
-    proxy = proxies[i % len(proxies)]  # Rotate through the proxy list
-    t = threading.Thread(target=run_bot, args=(proxy, coord1, coord2, color, api_key))
-    t.start()
-    threads.append(t)
-
-# Wait for all threads to complete
-for t in threads:
-    t.join()
-"""
-
-# Save the code to a Python file
-with open("/mnt/data/pixelplanet_bot.py", "w") as f:
-    f.write(code)
+# Inject the UI after opening the page
+bot = PixmapBot(proxy=proxy, api_key=api_key)
+bot.inject_ui()
